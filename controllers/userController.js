@@ -42,3 +42,28 @@ export const register = catchAsyncError(async (req, res, next) => {
         }
     });
 });
+
+
+export const login = catchAsyncError(async (req, res, next) => {
+    const { email, password } = req.body;
+
+    // Check if email and password are provided
+    if (!email || !password) {
+        return next(new ErrorHandler('Please provide email and password', 400));
+    }
+
+    // Find user and include password for comparison
+    const user = await User.findOne({ email }).select('+password');
+    if (!user) {
+        return next(new ErrorHandler('Invalid email or password', 401));
+    }
+
+    // Check password
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+        return next(new ErrorHandler('Invalid email or password', 401));
+    }
+
+    // Send token in response
+    sendToken(res, user, "Logged in successfully");
+});
