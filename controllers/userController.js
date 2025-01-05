@@ -163,3 +163,106 @@ export const acceptFriendRequest = catchAsyncError(async (req, res, next) => {
         message: 'Friend request accepted successfully'
     });
 });
+
+
+export const searchUsers = catchAsyncError(async (req, res, next) => {
+    const { query } = req.query;
+    const currentUser = req.user.id;
+
+    if (!query) {
+        return next(new ErrorHandler('Please provide a search query', 400));
+    }
+
+    // Search for users whose username, email, or full name matches the query
+    const users = await User.find({
+        $and: [
+            { _id: { $ne: currentUser } },
+            {
+                $or: [
+                    { username: { $regex: query, $options: 'i' } }, 
+                    { email: { $regex: query, $options: 'i' } }, 
+                    { fullName: { $regex: query, $options: 'i' } }
+                ]
+            }
+        ]
+    }).select('fullName username email');
+
+    if (users.length === 0) {
+        return next(new ErrorHandler('No users found matching the query', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        count: users.length,
+        data: users
+    });
+});
+
+
+export const getFriendRecommendations = catchAsyncError(async (req, res, next) => {
+    const userId = req.user.id;
+    
+    // Get current user's friends
+    const user = await User.findById(userId).populate('friends');
+    if (!user) {
+        return next(new ErrorHandler('User not found', 404));
+    }
+    
+    const userFriends = user.friends.map(friend => friend._id);
+    
+    // Get recommendations based on mutual friends
+    const recommendations = await User.aggregate([
+        {
+            $match: {
+                _id: { $nin: [...userFriends, user._id] }
+            }
+        },
+        // Look up their friends list
+        {
+            $lookup: {
+                from: 'users',
+                localField: 'friends',
+                foreignField: '_id',
+                as: 'theirFriends'
+            }
+        },
+        // Calculate mutual friends count
+        {
+            $addFields: {
+                mutualFriendsCount: {
+                    $size: {
+                        $setIntersection: ['$theirFriends._id', userFriends]
+                    }
+                }
+            }
+        },
+        {
+            $match: {
+                mutualFriendsCount: { $gt: 0 }
+            }
+        },
+        {
+            $sort: { mutualFriendsCount: -1 }
+        },
+        {
+            $limit: 5
+        },
+        {
+            $project: {
+                fullName: 1,
+                username: 1,
+                email: 1,
+                mutualFriendsCount: 1
+            }
+        }
+    ]);
+
+    res.status(200).json({
+        success: true,
+        count: recommendations.length,
+        data: recommendations.map(rec => ({
+            ...rec,
+            recommendationReason: `${rec.mutualFriendsCount} mutual friend${rec.mutualFriendsCount > 1 ? 's' : ''}`
+        }))
+    });
+});
