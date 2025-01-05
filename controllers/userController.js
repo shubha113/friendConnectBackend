@@ -125,3 +125,41 @@ export const sendFriendRequest = catchAsyncError (async(req, res, next)=>{
         message: 'Friend request sent successfully'
     });
 });
+
+
+export const acceptFriendRequest = catchAsyncError(async (req, res, next) => {
+    const { requestId } = req.body;
+    const userId = req.user.id;
+
+    if (!requestId) {
+        return next(new ErrorHandler('Please provide request ID', 400));
+    }
+
+    // Find the current user
+    const user = await User.findById(userId);
+    const request = user.friendRequests.id(requestId);
+
+    if (!request) {
+        return next(new ErrorHandler('Friend request not found', 404));
+    }
+
+    if (request.status !== 'pending') {
+        return next(new ErrorHandler('Friend request already processed', 400));
+    }
+
+    // Update request status and add to friends list
+    request.status = 'accepted';
+    user.friends.push(request.from);
+    
+    await user.save();
+
+    // Update the friend's friends list
+    await User.findByIdAndUpdate(request.from, {
+        $push: { friends: userId }
+    });
+
+    res.status(200).json({
+        success: true,
+        message: 'Friend request accepted successfully'
+    });
+});
