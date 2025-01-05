@@ -2,6 +2,7 @@ import ErrorHandler from '../utils/errorHandler.js';
 import { catchAsyncError } from '../middleware/catchAsyncError.js';
 import { sendToken } from '../utils/sendToken.js';
 import User from '../models/userModel.js';
+import { Error } from 'mongoose';
 
 export const register = catchAsyncError(async (req, res, next) => {
     const { fullName, username, email, password } = req.body;
@@ -82,4 +83,45 @@ export const logout = catchAsyncError(async (req, res, next) => {
             success: true,
             message: 'Logged out successfully'
         });
+});
+
+
+export const sendFriendRequest = catchAsyncError (async(req, res, next)=>{
+    const { friendId } = req.body;
+    const userId = req.user.id;
+
+    if(!friendId){
+        return next( new ErrorHandler("Please provide friend ID", 400));
+    }
+
+    if(friendId === userId){
+        return next ( new ErrorHandler("You cannot send friend request to yourself", 400));
+    }
+
+    const [user, friend] = await Promise.all([User.findById(userId), User.findById(friendId)]);
+
+    if(!friend) {
+        return next (new ErrorHandler("User not found", 404));
+    }
+
+    //check if they are already friends
+    if(user.friends.includes(friendId)){
+        return next(new ErrorHandler("You are already friend with this user", 400));
+    }
+
+    const existingRequest = friend.friendRequests.find(
+        request => request.from.toString() === userId.toString()
+    );
+
+    if(existingRequest){
+        return next(new ErrorHandler("Friend request already sent", 400));
+    }
+
+    friend.friendRequests.push({from: userId, status: 'pending'});
+
+    await friend.save();
+    res.status(200).json({
+        success: true,
+        message: 'Friend request sent successfully'
+    });
 });
