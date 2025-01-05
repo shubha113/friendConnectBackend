@@ -268,8 +268,6 @@ export const getFriendRecommendations = catchAsyncError(async (req, res, next) =
 });
 
 
-// Add this to your existing controllers file
-
 export const getMyProfile = catchAsyncError(async (req, res, next) => {
     const userId = req.user.id;
 
