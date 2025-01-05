@@ -67,3 +67,19 @@ export const login = catchAsyncError(async (req, res, next) => {
     // Send token in response
     sendToken(res, user, "Logged in successfully");
 });
+
+
+export const logout = catchAsyncError(async (req, res, next) => {
+    // Clear the token cookie
+    res.status(200)
+        .cookie('token', null, {
+            expires: new Date(Date.now()),
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+        })
+        .json({
+            success: true,
+            message: 'Logged out successfully'
+        });
+});
