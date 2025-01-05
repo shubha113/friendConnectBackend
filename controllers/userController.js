@@ -266,3 +266,30 @@ export const getFriendRecommendations = catchAsyncError(async (req, res, next) =
         }))
     });
 });
+
+
+// Add this to your existing controllers file
+
+export const getMyProfile = catchAsyncError(async (req, res, next) => {
+    const userId = req.user.id;
+
+    const user = await User.findById(userId)
+        .select('-password -friendRequests')
+        .populate('friends', 'fullName username email');
+
+    if (!user) {
+        return next(new ErrorHandler('User not found', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        data: {
+            _id: user._id,
+            fullName: user.fullName,
+            username: user.username,
+            email: user.email,
+            friends: user.friends,
+            createdAt: user.createdAt
+        }
+    });
+});
